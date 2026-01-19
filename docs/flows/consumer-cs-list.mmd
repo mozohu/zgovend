@@ -1,0 +1,12 @@
+sequenceDiagram
+  participant U as 一般消費者
+  participant L as LIFF
+  participant B as 後端
+  participant D as 後端資料庫
+
+  U->>L: 開啟問題單列表
+  L->>B: 查詢本人問題單
+  B->>D: 依 userId 取得問題單
+  D-->>B: 回傳問題單清單
+  B-->>L: 回傳列表與狀態
+  L-->>U: 顯示列表

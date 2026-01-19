@@ -1,0 +1,15 @@
+sequenceDiagram
+  participant U as 一般消費者
+  participant L as LIFF
+  participant B as 後端
+  participant S as 物件儲存
+  participant D as 後端資料庫
+
+  U->>L: 填寫問題分類與描述
+  L->>S: 上傳圖片或影片
+  S-->>L: 回傳附件網址
+  L->>B: 建立客服問題單
+  B->>D: 寫入問題單
+  D-->>B: 回傳問題單編號
+  B-->>L: 建立成功
+  L-->>U: 顯示問題單編號

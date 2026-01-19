@@ -1,0 +1,15 @@
+sequenceDiagram
+  participant R as 巡補員
+  participant L as LIFF
+  participant B as 後端
+  participant D as 後端資料庫
+  participant M as 機台
+
+  R->>L: 選擇機台清單
+  L->>B: 產生撿貨清單
+  B->>M: 取得機台庫存
+  M-->>B: 庫存快照
+  B->>D: 取得商品名稱
+  D-->>B: 商品資料
+  B-->>L: 回傳分組清單
+  L-->>R: 顯示撿貨清單

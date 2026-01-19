@@ -1,0 +1,43 @@
+sequenceDiagram
+  participant R as 巡補員
+  participant L as LIFF
+  participant B as 後端
+  participant D as 後端資料庫
+  participant M as 機台
+
+  R->>L: 掃碼機台簽到
+  L->>B: 簽到驗證
+  B->>M: 驗證現場簽到碼
+  M-->>B: 驗證成功
+  B-->>L: 簽到成功
+  L-->>R: 進入巡補模式
+
+  R->>L: 開始巡補
+  L->>B: 建立巡補 Session
+  B->>D: 新增 Session
+  D-->>B: Session 編號
+  B-->>L: 巡補開始
+  L-->>R: 顯示巡補畫面
+
+  R->>L: 套用預約設定檔
+  L->>B: 套用設定檔
+  B->>D: 讀取設定內容
+  D-->>B: 設定內容
+  B-->>L: 暫存套用結果
+  L-->>R: 顯示暫存庫存
+
+  R->>L: 手動調整貨道設定
+  L->>B: 更新貨道內容
+  B->>D: 更新暫存內容
+  D-->>B: 更新完成
+  B-->>L: 更新成功
+  L-->>R: 顯示更新結果
+
+  R->>L: 結束巡補
+  L->>B: 提交巡補結果
+  B->>M: 寫入機台庫存
+  M-->>B: 寫入成功
+  B->>D: 關閉 Session
+  D-->>B: 關閉完成
+  B-->>L: 巡補完成
+  L-->>R: 切回銷售模式

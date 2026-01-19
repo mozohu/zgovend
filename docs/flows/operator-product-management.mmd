@@ -1,0 +1,40 @@
+sequenceDiagram
+  participant O as 營運者
+  participant L as LIFF
+  participant B as 後端
+  participant S as 物件儲存
+  participant D as 後端資料庫
+
+  O->>L: 開啟商品列表
+  L->>B: 查詢商品清單
+  B->>D: 取得商品資料
+  D-->>B: 商品清單
+  B-->>L: 回傳列表
+  L-->>O: 顯示列表
+
+  O->>L: 新增商品（含圖片）
+  L->>S: 上傳圖片
+  S-->>L: 圖片網址
+  L->>B: 建立商品
+  B->>D: 寫入商品資料
+  D-->>B: 商品編號
+  B-->>L: 建立成功
+  L-->>O: 顯示新商品
+
+  O->>L: 編輯商品欄位
+  alt 更新圖片
+    L->>S: 上傳新圖片
+    S-->>L: 新圖片網址
+  end
+  L->>B: 更新商品
+  B->>D: 更新商品資料
+  D-->>B: 更新完成
+  B-->>L: 更新成功
+  L-->>O: 顯示更新結果
+
+  O->>L: 刪除商品
+  L->>B: 刪除商品
+  B->>D: 硬刪除商品
+  D-->>B: 刪除完成
+  B-->>L: 刪除成功
+  L-->>O: 從列表移除

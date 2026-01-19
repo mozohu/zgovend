@@ -1,0 +1,47 @@
+flowchart LR
+  subgraph Clients
+    C1[Consumer LIFF]
+    C2[Operator LIFF]
+    C3[Replenisher LIFF]
+  end
+
+  subgraph Backend
+    B1[API Gateway]
+    B2[Auth/Identity]
+    B3[Customer Service]
+    B4[Product Master]
+    B5[Reservation Templates]
+    B6[Replenishment Session]
+    B7[Machine Registry]
+  end
+
+  subgraph Storage
+    S1[(Backend DB)]
+    S2[(Object Storage)]
+  end
+
+  subgraph MachineSide
+    M1[Machine Runtime]
+    M2[(Machine Local DB)]
+  end
+
+  C1 --> B1
+  C2 --> B1
+  C3 --> B1
+
+  B1 --> B2
+  B1 --> B3
+  B1 --> B4
+  B1 --> B5
+  B1 --> B6
+  B1 --> B7
+
+  B3 --> S1
+  B3 --> S2
+  B4 --> S1
+  B5 --> S1
+  B6 --> S1
+  B7 --> S1
+
+  B6 <-->|MQ/Web Services| M1
+  M1 --> M2
