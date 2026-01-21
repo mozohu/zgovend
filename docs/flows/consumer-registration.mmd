@@ -1,0 +1,24 @@
+sequenceDiagram
+  participant U as 使用者
+  participant L as 智購小幫手
+  participant B as 後端
+  participant D as 後端資料庫
+  participant O as OAuth 供應商
+
+  U->>L: 第一次加入 / 開啟聊天
+  L->>B: 查詢註冊狀態(Line UserID)
+  B->>D: 以 Line UserID 查詢
+  D-->>B: 回傳是否已註冊
+  alt 已註冊
+    B-->>L: 回傳註冊完成
+    L-->>U: 可使用功能 / 引導授權
+  else 未註冊
+    B-->>L: 回傳未註冊與註冊連結
+    L-->>U: 引導註冊
+    U->>O: OAuth 登入( Google / Facebook )
+    O-->>B: 回傳授權資訊
+    B->>D: 綁定 Line UserID 與 OAuth 帳號
+    D-->>B: 綁定成功
+    B-->>L: 回傳註冊完成
+    L-->>U: 顯示註冊完成
+  end

@@ -1,0 +1,21 @@
+flowchart TB
+  subgraph S1[聊天引導卡片]
+    S1T[標題: 歡迎加入智購小幫手]
+    S1D[說明: 完成註冊以使用完整功能]
+    S1B[按鈕: 開始註冊]
+  end
+
+  subgraph S2[註冊說明頁]
+    S2T[標題: 註冊與帳號綁定]
+    S2D[說明: 使用 Google / Facebook 快速註冊]
+    S2B1[按鈕: 使用 Google 註冊]
+    S2B2[按鈕: 使用 Facebook 註冊]
+  end
+
+  subgraph S3[授權完成頁]
+    S3T[標題: 註冊完成]
+    S3D[說明: 已完成綁定，可開始使用功能]
+    S3B[按鈕: 前往功能列表]
+  end
+
+  S1 --> S2 --> S3
