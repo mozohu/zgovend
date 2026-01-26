@@ -1,0 +1,52 @@
+%% 註冊流程不計層數；深度限制從入口功能後開始計算
+%% L0=角色入口, L1=功能頁, L2=子頁 (深度不超過3層)
+flowchart TB
+  Register[註冊/登入流程]
+  Entry[L0 角色入口/功能列]
+
+  Register --> Entry
+
+  Entry --> CHome[L0 一般消費者 - 入口功能列]
+  Entry --> AHome[L0 營運管理員 - 入口功能列]
+  Entry --> RHome[L0 巡補員 - 入口功能列]
+
+  %% 一般消費者 (2~3 層內)
+  CHome --> CMember[L1 會員資訊]
+  CHome --> CSupport[L1 客服/回報]
+  CHome --> CMachines[L1 機台/門市]
+
+  CMember --> CMemberEdit[L2 編輯/綁定/隱私]
+  CSupport --> CSupportFlow[L2 回報表單/附件/紀錄]
+  CMachines --> CMachinesList[L2 列表/地圖/詳情/收藏]
+
+  %% 營運管理員
+  AHome --> AOrgCenter[L1 組織切換/通知中心]
+  AHome --> ARevenueOrders[L1 今日營收/訂單]
+  AHome --> AAbnormal[L1 異常機台/待處理]
+  AHome --> AMachineMgmt[L1 機台管理]
+  AHome --> AProductsPricing[L1 商品與價格]
+  AHome --> AInventoryStrategy[L1 庫存與補貨策略]
+  AHome --> AReplenishmentRecords[L1 補貨記錄]
+  AHome --> AWorkordersSupport[L1 工單/客服]
+  AHome --> AAlertsIncidents[L1 最新告警/異常記錄]
+
+  AOrgCenter --> AOrgPages[L2 組織/通知/設定]
+  ARevenueOrders --> AOrderPages[L2 訂單列表/詳情/報表]
+  AAbnormal --> AAbnormalPages[L2 清單/詳情/指派]
+  AMachineMgmt --> AMachinePages[L2 列表/詳情/狀態/新增]
+  AProductsPricing --> AProductPages[L2 列表/詳情/新增/促銷]
+  AInventoryStrategy --> AInventoryPages[L2 總覽/低庫存/策略]
+  AReplenishmentRecords --> AReplenPages[L2 列表/詳情/異常/匯出]
+  AWorkordersSupport --> AWorkorderPages[L2 列表/詳情/指派/新增]
+  AAlertsIncidents --> AAlertPages[L2 列表/詳情/工單/結案]
+
+  %% 巡補員
+  RHome --> RStartPatrol[L1 開始巡補]
+  RHome --> RInventoryCheck[L1 庫存盤點]
+  RHome --> RFaultReport[L1 機台故障回報]
+  RHome --> RReplenishRecord[L1 補貨記錄]
+
+  RStartPatrol --> RPatrolFlow[L2 站點導航/進度/完成]
+  RInventoryCheck --> RInventoryFlow[L2 清單/結果/提交]
+  RFaultReport --> RFaultFlow[L2 描述/附件/完成]
+  RReplenishRecord --> RReplenFlow[L2 清單/備註/提交]
