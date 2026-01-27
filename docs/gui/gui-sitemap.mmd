@@ -16,7 +16,7 @@ flowchart TB
   CHome --> CMachines[L1 機台/門市]
 
   CMember --> CMemberEdit[L2 編輯/綁定/隱私]
-  CSupport --> CSupportFlow[L2 回報表單/附件/紀錄]
+  CSupport --> CSupportFlow[L2 回報表單/附件/紀錄/回覆]
   CMachines --> CMachinesList[L2 列表/地圖/詳情/收藏]
 
   %% 營運管理員
@@ -25,7 +25,7 @@ flowchart TB
   AHome --> AAbnormal[L1 異常機台/待處理]
   AHome --> AMachineMgmt[L1 機台管理]
   AHome --> AProductsPricing[L1 商品與價格]
-  AHome --> AInventoryStrategy[L1 庫存與補貨策略]
+  AHome --> AInventoryStrategy[L1 庫存預約設定]
   AHome --> AReplenishmentRecords[L1 補貨記錄]
   AHome --> AWorkordersSupport[L1 工單/客服]
   AHome --> AAlertsIncidents[L1 最新告警/異常記錄]
@@ -35,18 +35,18 @@ flowchart TB
   AAbnormal --> AAbnormalPages[L2 清單/詳情/指派]
   AMachineMgmt --> AMachinePages[L2 列表/詳情/狀態/新增]
   AProductsPricing --> AProductPages[L2 列表/詳情/新增/促銷]
-  AInventoryStrategy --> AInventoryPages[L2 總覽/低庫存/策略]
+  AInventoryStrategy --> AInventoryPages[L2 清單/命名/編輯]
   AReplenishmentRecords --> AReplenPages[L2 列表/詳情/異常/匯出]
   AWorkordersSupport --> AWorkorderPages[L2 列表/詳情/指派/新增]
   AAlertsIncidents --> AAlertPages[L2 列表/詳情/工單/結案]
 
   %% 巡補員
   RHome --> RStartPatrol[L1 開始巡補]
-  RHome --> RInventoryCheck[L1 庫存盤點]
+  RHome --> RInventoryCheck[L1 撿貨清單]
   RHome --> RFaultReport[L1 機台故障回報]
   RHome --> RReplenishRecord[L1 補貨記錄]
 
   RStartPatrol --> RPatrolFlow[L2 站點導航/進度/完成]
-  RInventoryCheck --> RInventoryFlow[L2 清單/結果/提交]
+  RInventoryCheck --> RInventoryFlow[L2 多選/彙總]
   RFaultReport --> RFaultFlow[L2 描述/附件/完成]
   RReplenishRecord --> RReplenFlow[L2 清單/備註/提交]
