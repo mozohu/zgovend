@@ -12,7 +12,7 @@
 - `GET /support/tickets`
   - 查詢本人問題單清單與狀態
 - `GET /support/tickets/{ticketId}`
-  - 查詢問題單細節與回覆內容
+  - 查詢問題單細節、處理過程與客服回覆內容（回覆由客服系統提供）
 
 ## 商品主檔（營運者）
 - `GET /products`
@@ -38,21 +38,23 @@
 - `DELETE /reservation-templates/{templateId}`
   - 硬刪除設定檔
 - `PUT /reservation-templates/{templateId}/channels`
-  - 更新貨道商品、清空商品、滿倉量
+  - 更新貨道商品、滿倉量、庫存量
 
 ## 撿貨清單（巡補員）
 - `POST /picklists`
-  - 依選擇機台產生撿貨清單
+  - 依選擇機台產生撿貨清單（總庫存量/總滿倉量/總缺補量）
 
 ## 巡補作業（巡補員）
 - `POST /machines/{machineId}/checkin`
   - 現場簽到驗證
 - `POST /replenishment/sessions`
   - 建立巡補 Session
+- `GET /replenishment/templates`
+  - 取得可用的預約設定清單
 - `POST /replenishment/sessions/{sessionId}/apply-template`
   - 套用預約設定檔（暫存）
 - `PATCH /replenishment/sessions/{sessionId}/channels`
-  - 更新貨道商品/庫存/滿倉量（暫存）
+  - 更新貨道商品/庫存/滿倉量（暫存，含清空/補滿）
 - `POST /replenishment/sessions/{sessionId}/complete`
   - 提交巡補結果並寫入機台
 
