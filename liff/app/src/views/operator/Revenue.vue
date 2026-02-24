@@ -8,11 +8,11 @@ import ExportButtons from '../../components/ExportButtons.vue'
 // ECharts tree-shaken imports
 import { use } from 'echarts/core'
 import { BarChart } from 'echarts/charts'
-import { GridComponent, TooltipComponent, DataZoomComponent } from 'echarts/components'
+import { GridComponent, TooltipComponent, DataZoomComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import VChart from 'vue-echarts'
 
-use([CanvasRenderer, BarChart, GridComponent, TooltipComponent, DataZoomComponent])
+use([CanvasRenderer, BarChart, GridComponent, TooltipComponent, DataZoomComponent, LegendComponent])
 
 const route = useRoute()
 const router = useRouter()
@@ -30,6 +30,9 @@ interface TxSummary {
   dispenseSuccess: boolean | null
   dispenseChannel: string
   dispenseElapsed: number | null
+  invoiceNo: string | null
+  invoiceRandom: string | null
+  refundStatus: string | null
 }
 
 interface VmInfo {
@@ -74,7 +77,7 @@ async function loadData() {
       if (vm.hidCode) map.set(vm.hidCode, vm)
     }
     vmMap.value = map
-    await Promise.all([loadTransactions(), loadDailyRevenue()])
+    await Promise.all([loadPaymentMethods(), loadTransactions(), loadDailyRevenue()])
   } catch (e: any) {
     console.error('loadData failed:', e)
   } finally {
@@ -101,16 +104,18 @@ async function loadTransactions() {
 
     const data = await gql(`{
       vendTransactionSummaries(${args.join(', ')}) {
-        txno deviceId startedAt status productName price paymentMethod dispenseSuccess dispenseChannel dispenseElapsed
+        txno deviceId startedAt status productName price paymentMethod dispenseSuccess dispenseChannel dispenseElapsed invoiceNo invoiceRandom refundStatus
       }
     }`)
 
     let list: TxSummary[] = data.vendTransactionSummaries || []
 
-    // Client-side filter by selected devices
-    if (selectedDevices.value.length > 0) {
-      const deviceSet = new Set(selectedDevices.value)
-      list = list.filter(t => deviceSet.has(t.deviceId))
+    // Filter by operator's devices (always — ensures operator isolation)
+    const operatorDevices = selectedDevices.value.length > 0
+      ? new Set(selectedDevices.value)
+      : new Set(vmList.value.map(v => v.hidCode).filter(Boolean))
+    if (operatorDevices.size > 0) {
+      list = list.filter(t => operatorDevices.has(t.deviceId))
     }
 
     transactions.value = list
@@ -142,10 +147,12 @@ function formatTime(ts: string) {
 }
 
 function payResult(tx: TxSummary) {
-  if (tx.dispenseSuccess) return '✅'
+  // If dispense was attempted (success or fail), payment succeeded
+  if (tx.dispenseSuccess !== null) return '✅'
   if (tx.status === 'cancelled') return '❌'
   if (tx.status === 'active') return '⏳'
-  return '❌'
+  // timeout without dispense attempt = payment not completed
+  return '-'
 }
 
 function dispResult(tx: TxSummary) {
@@ -154,14 +161,28 @@ function dispResult(tx: TxSummary) {
   return '-'
 }
 
+// Payment method label map (loaded from API)
+const paymentMethodMap = ref<Record<string, string>>({})
+
+async function loadPaymentMethods() {
+  try {
+    const data = await gql(`{ paymentMethods { key name } }`)
+    const map: Record<string, string> = {}
+    for (const pm of (data.paymentMethods || [])) map[pm.key] = pm.name
+    paymentMethodMap.value = map
+  } catch {}
+}
+
 function methodLabel(m: string) {
+  return paymentMethodMap.value[m] || m || '-'
+}
+
+function refundLabel(s: string) {
   const map: Record<string, string> = {
-    'cash': '現金',
-    'creditcard': '信用卡',
-    'linepay': 'LINE Pay',
-    'jkopay': '街口',
+    'refunded': '🔄 已退款',
+    'refund_pending': '⏳ 退款中',
   }
-  return map[m] || m || '-'
+  return map[s] || s
 }
 
 function toggleDevice(hidCode: string) {
@@ -188,7 +209,8 @@ const successCount = computed(() =>
 )
 
 // Daily revenue chart data (from projector-aggregated daily_stats)
-interface DailyPoint { date: string; revenue: number }
+interface MethodCount { method: string; count: number; revenue?: number }
+interface DailyPoint { date: string; revenue: number; byMethod?: MethodCount[] }
 
 const dailyRevenue = ref<DailyPoint[]>([])
 
@@ -212,23 +234,28 @@ async function loadDailyRevenue() {
     if (deviceIds.length === 0) { dailyRevenue.value = []; return }
 
     const data = await gql(`query($deviceIds: [String!], $from: String, $to: String) {
-      dailyRevenue(deviceIds: $deviceIds, from: $from, to: $to) { date revenue txCount successCount }
+      dailyRevenue(deviceIds: $deviceIds, from: $from, to: $to) { date revenue txCount successCount byMethod { method count revenue } }
     }`, { deviceIds, from: dateFrom.value, to: dateTo.value })
 
-    const statsMap = new Map<string, number>()
+    const statsMap = new Map<string, DailyPoint>()
     for (const pt of (data.dailyRevenue || [])) {
-      statsMap.set(pt.date, pt.revenue)
+      statsMap.set(pt.date, pt)
     }
 
-    // Fill missing dates
+    // Fill missing dates (use local date arithmetic to avoid UTC shift)
     const result: DailyPoint[] = []
     if (dateFrom.value && dateTo.value) {
-      const cur = new Date(dateFrom.value + 'T00:00:00+08:00')
-      const end = new Date(dateTo.value + 'T00:00:00+08:00')
-      while (cur <= end) {
-        const key = cur.toISOString().slice(0, 10)
-        result.push({ date: key, revenue: statsMap.get(key) || 0 })
-        cur.setDate(cur.getDate() + 1)
+      let cur = dateFrom.value // 'YYYY-MM-DD'
+      while (cur <= dateTo.value) {
+        const existing = statsMap.get(cur)
+        result.push(existing || { date: cur, revenue: 0, byMethod: [] })
+        // Increment date string by 1 day
+        const d = new Date(cur + 'T12:00:00+08:00') // noon to avoid DST edge
+        d.setDate(d.getDate() + 1)
+        const y = d.getFullYear()
+        const m = String(d.getMonth() + 1).padStart(2, '0')
+        const dd = String(d.getDate()).padStart(2, '0')
+        cur = `${y}-${m}-${dd}`
       }
     }
     dailyRevenue.value = result
@@ -237,28 +264,72 @@ async function loadDailyRevenue() {
   }
 }
 
-// ECharts option
+// Method colors
+const methodColors: Record<string, string> = {
+  'cash': '#4a90d9',
+  'creditcard': '#e67e22',
+  'linepay': '#00C300',
+  'jkopay': '#ff6b6b',
+  'isc_test': '#999',
+  'isc_admin': '#bbb',
+  'isc_anycode': '#8e44ad',
+}
+function getMethodColor(method: string, idx: number) {
+  return methodColors[method] || ['#4a90d9','#e67e22','#2ecc71','#e74c3c','#9b59b6','#f39c12','#1abc9c','#34495e'][idx % 8]
+}
+
+// ECharts option — stacked bar by payment method
 const chartOption = computed(() => {
   const points = dailyRevenue.value
   if (points.length === 0) return null
   const dates = points.map(p => p.date.slice(5)) // MM-DD
-  const values = points.map(p => p.revenue)
   const showZoom = points.length > 14
+
+  // Collect all methods across all days
+  const allMethods = new Set<string>()
+  for (const p of points) {
+    for (const m of (p.byMethod || [])) allMethods.add(m.method)
+  }
+  const methods = Array.from(allMethods).sort()
+
+  // If no byMethod data at all, fall back to single series
+  const series = methods.length > 0
+    ? methods.map((method, idx) => ({
+        name: methodLabel(method),
+        type: 'bar' as const,
+        stack: 'revenue',
+        data: points.map(p => {
+          const m = (p.byMethod || []).find(x => x.method === method)
+          return m ? (m.revenue || 0) : 0
+        }),
+        itemStyle: { color: getMethodColor(method, idx) },
+        barMaxWidth: 24,
+      }))
+    : [{
+        name: '營業額',
+        type: 'bar' as const,
+        data: points.map(p => p.revenue),
+        itemStyle: { color: '#4a90d9' },
+        barMaxWidth: 24,
+      }]
 
   return {
     tooltip: {
       trigger: 'axis',
-      formatter: (params: any) => {
-        const d = params[0]
-        return `<b>${d.name}</b><br/>營業額：$${d.value.toLocaleString()}`
-      },
       textStyle: { fontSize: 13 },
     },
+    legend: methods.length > 1 ? {
+      data: methods.map(m => methodLabel(m)),
+      bottom: showZoom ? 30 : 0,
+      textStyle: { fontSize: 11 },
+      itemWidth: 12,
+      itemHeight: 10,
+    } : undefined,
     grid: {
       left: 45,
       right: 12,
       top: 10,
-      bottom: showZoom ? 56 : 28,
+      bottom: showZoom ? 80 : (methods.length > 1 ? 50 : 28),
       containLabel: false,
     },
     xAxis: {
@@ -283,25 +354,14 @@ const chartOption = computed(() => {
       splitLine: { lineStyle: { color: '#f5f5f5' } },
       axisLine: { show: false },
     },
-    series: [{
-      type: 'bar',
-      data: values,
-      itemStyle: {
-        color: '#4a90d9',
-        borderRadius: [3, 3, 0, 0],
-      },
-      emphasis: {
-        itemStyle: { color: '#e67e22' },
-      },
-      barMaxWidth: 24,
-    }],
+    series,
     ...(showZoom ? {
       dataZoom: [{
         type: 'slider',
         start: Math.max(0, 100 - (14 / points.length * 100)),
         end: 100,
         height: 22,
-        bottom: 4,
+        bottom: methods.length > 1 ? 52 : 4,
         borderColor: '#ddd',
         fillerColor: 'rgba(74,144,217,0.15)',
         handleSize: '60%',
@@ -401,9 +461,14 @@ const csvHeaders = ['交易號', '設備ID', '商品', '金額', '付款方式',
           <div class="tx-row-status">
             <span>支付 {{ payResult(tx) }}</span>
             <span>出貨 {{ dispResult(tx) }}</span>
+            <span v-if="tx.refundStatus" class="tx-refund">{{ refundLabel(tx.refundStatus) }}</span>
             <span v-if="tx.dispenseChannel">貨道 {{ tx.dispenseChannel }}</span>
             <span v-if="tx.dispenseElapsed">{{ tx.dispenseElapsed }}秒</span>
             <span class="tx-device">{{ vmName(tx.deviceId) }}</span>
+          </div>
+          <div class="tx-row-extra">
+            <span class="tx-txno">#{{ tx.txno }}</span>
+            <span v-if="tx.invoiceNo" class="tx-invoice">🧾 {{ tx.invoiceNo }}</span>
           </div>
         </li>
       </ul>
@@ -520,6 +585,16 @@ const csvHeaders = ['交易號', '設備ID', '商品', '金額', '付款方式',
   flex-wrap: wrap;
 }
 .tx-device { margin-left: auto; color: #aaa; }
+.tx-refund { color: #e74c3c; font-weight: 500; }
+.tx-row-extra {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 3px;
+  font-size: 11px;
+  color: #bbb;
+}
+.tx-txno { font-family: monospace; }
+.tx-invoice { color: #7b1fa2; }
 
 /* ECharts */
 .chart-section {

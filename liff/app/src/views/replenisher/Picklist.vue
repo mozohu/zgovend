@@ -26,7 +26,18 @@ const filteredRows = computed(() => {
   let rows = allRows.value
   const sel = filterVmids.value
   if (sel.length > 0) {
-    rows = rows.filter(r => r.vms.some(v => sel.includes(v.vmid) && v.needed > 0))
+    rows = rows
+      .filter(r => r.vms.some(v => sel.includes(v.vmid) && v.needed > 0))
+      .map(r => {
+        // Recompute totals based on selected VMs only
+        const selVms = r.vms.filter(v => sel.includes(v.vmid))
+        return {
+          ...r,
+          totalCurrent: selVms.reduce((s, v) => s + v.currentQty, 0),
+          totalMax: selVms.reduce((s, v) => s + v.maxQty, 0),
+          totalNeeded: selVms.reduce((s, v) => s + v.needed, 0),
+        }
+      })
   }
   if (filterProduct.value) {
     const q = filterProduct.value.toLowerCase()
@@ -161,7 +172,7 @@ const csvHeaders = ['營運商', '商品編號', '商品名稱', '售價', '目�
               </tr>
             </thead>
             <tbody>
-              <tr v-for="row in filteredRows" :key="row.productCode">
+              <tr v-for="row in filteredRows" :key="row.operatorId + '::' + row.productCode">
                 <td class="col-product">
                   <div class="prod-cell">
                     <img v-if="row.imageUrl" :src="row.imageUrl" class="prod-img" @error="(e: any) => e.target.style.display='none'" />
@@ -174,7 +185,7 @@ const csvHeaders = ['營運商', '商品編號', '商品名稱', '售價', '目�
                 <td class="num bold">{{ row.totalCurrent }}</td>
                 <td class="num dim bold">{{ row.totalMax }}</td>
                 <td class="num red bold">{{ row.totalNeeded }}</td>
-                <template v-for="vm in visibleVmids" :key="'d-'+vm+row.productCode">
+                <template v-for="vm in visibleVmids" :key="'d-'+vm+row.operatorId+row.productCode">
                   <td class="num">{{ getVmData(row, vm).currentQty || '-' }}</td>
                   <td class="num dim">{{ getVmData(row, vm).maxQty || '-' }}</td>
                   <td class="num" :class="{ red: getVmData(row, vm).needed > 0 }">

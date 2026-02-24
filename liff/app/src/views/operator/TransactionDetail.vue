@@ -25,16 +25,26 @@
           <span class="label">付款方式</span>
           <span class="value">{{ getPaymentMethodLabel(timeline.transaction.paymentMethod) }}</span>
         </div>
-        <div class="summary-row">
-          <span class="label">交易狀態</span>
-          <span class="value" :class="getStatusClass(timeline.transaction.status)">
-            {{ getStatusLabel(timeline.transaction.status) }}
-          </span>
-        </div>
+        <!-- 交易狀態（session timeout）顯示在時間軸，不在摘要卡 -->
         <div class="summary-row" v-if="timeline.transaction.dispenseSuccess !== null">
           <span class="label">出貨結果</span>
           <span class="value" :class="timeline.transaction.dispenseSuccess ? 'success' : 'failed'">
             {{ timeline.transaction.dispenseSuccess ? '✅ 成功' : '❌ 失敗' }}
+            <template v-if="timeline.transaction.dispenseElapsed"> ({{ timeline.transaction.dispenseElapsed }}秒)</template>
+          </span>
+        </div>
+        <div class="summary-row">
+          <span class="label">交易號</span>
+          <span class="value mono">{{ timeline.transaction.txno }}</span>
+        </div>
+        <div class="summary-row" v-if="timeline.transaction.invoiceNo">
+          <span class="label">發票號碼</span>
+          <span class="value">{{ timeline.transaction.invoiceNo }} ({{ timeline.transaction.invoiceRandom }})</span>
+        </div>
+        <div class="summary-row" v-if="timeline.transaction.refundStatus">
+          <span class="label">退款</span>
+          <span class="value" :class="timeline.transaction.refundStatus === 'refunded' ? 'refunded' : 'pending'">
+            {{ timeline.transaction.refundStatus === 'refunded' ? '🔄 已退款' : '⏳ 退款中' }}
           </span>
         </div>
       </div>
@@ -90,6 +100,13 @@ const timeline = ref<any>(null)
 const operatorName = ref('營運商')
 
 onMounted(async () => {
+  // Load payment method labels
+  try {
+    const pmData = await gql(`{ paymentMethods { key name } }`)
+    const map: Record<string, string> = {}
+    for (const pm of (pmData.paymentMethods || [])) map[pm.key] = pm.name
+    paymentMethodMap.value = map
+  } catch {}
   try {
     const result = await gql(`
       query GetTimeline($txno: String!) {
@@ -113,6 +130,10 @@ onMounted(async () => {
             paymentMethod
             dispenseSuccess
             dispenseChannel
+            dispenseElapsed
+            invoiceNo
+            invoiceRandom
+            refundStatus
           }
           events {
             timestamp
@@ -232,14 +253,11 @@ const getElapsed = (from: string, to: string): string => {
   return `+${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
 }
 
+// Payment method label map (loaded from API)
+const paymentMethodMap = ref<Record<string, string>>({})
+
 const getPaymentMethodLabel = (method: string): string => {
-  const labels: Record<string, string> = {
-    linepay: 'LINE Pay',
-    ecpay: '綠界支付',
-    cash: '現金',
-    card: '信用卡'
-  }
-  return labels[method] || method || '-'
+  return paymentMethodMap.value[method] || method || '-'
 }
 
 const getStatusLabel = (status: string): string => {
@@ -263,8 +281,6 @@ const getStatusClass = (status: string): string => {
 <style scoped>
 .transaction-detail {
   padding: 16px;
-  max-width: 800px;
-  margin: 0 auto;
 }
 
 .loading, .error {
@@ -316,6 +332,16 @@ const getStatusClass = (status: string): string => {
 
 .summary-row .value.cancelled {
   color: #f57c00;
+}
+.summary-row .value.refunded {
+  color: #e74c3c;
+}
+.summary-row .value.pending {
+  color: #f39c12;
+}
+.summary-row .value.mono {
+  font-family: monospace;
+  font-size: 13px;
 }
 
 .timeline {
