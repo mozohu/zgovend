@@ -2,6 +2,7 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { gql } from '../../composables/useGraphQL'
+import { usePaymentMethods } from '../../composables/usePaymentMethods'
 import PageHeader from '../../components/PageHeader.vue'
 import ExportButtons from '../../components/ExportButtons.vue'
 
@@ -68,16 +69,22 @@ function initDateRange() {
 async function loadData() {
   loading.value = true
   try {
-    const vmData = await gql(`query($opId: String!) {
-      vms(operatorId: $opId) { vmid hidCode locationName }
-    }`, { opId: operatorId })
-    vmList.value = vmData.vms || []
+    // Single init query: operator name + vms + paymentMethods cache
+    const [initData] = await Promise.all([
+      gql(`query($opId: String!) {
+        operatorByCode(code: $opId) { name }
+        vms(operatorId: $opId) { vmid hidCode locationName }
+      }`, { opId: operatorId }),
+      ensurePaymentMethods(),
+    ])
+    if (initData.operatorByCode?.name) operatorName.value = initData.operatorByCode.name
+    vmList.value = initData.vms || []
     const map = new Map<string, VmInfo>()
     for (const vm of vmList.value) {
       if (vm.hidCode) map.set(vm.hidCode, vm)
     }
     vmMap.value = map
-    await Promise.all([loadPaymentMethods(), loadTransactions(), loadDailyRevenue()])
+    await Promise.all([loadTransactions(), loadDailyRevenue()])
   } catch (e: any) {
     console.error('loadData failed:', e)
   } finally {
@@ -87,38 +94,24 @@ async function loadData() {
 
 async function loadTransactions() {
   try {
-    // Build date range as epoch ms
+    // Server-side filtering by operator's devices
+    const deviceIds = selectedDevices.value.length > 0
+      ? selectedDevices.value
+      : vmList.value.map(v => v.hidCode).filter(Boolean)
+    if (deviceIds.length === 0) { transactions.value = []; return }
+
     let fromMs = 0
     let toMs = 0
-    if (dateFrom.value) {
-      fromMs = new Date(dateFrom.value + 'T00:00:00+08:00').getTime()
-    }
-    if (dateTo.value) {
-      toMs = new Date(dateTo.value + 'T23:59:59+08:00').getTime()
-    }
+    if (dateFrom.value) fromMs = new Date(dateFrom.value + 'T00:00:00+08:00').getTime()
+    if (dateTo.value) toMs = new Date(dateTo.value + 'T23:59:59+08:00').getTime()
 
-    const args: string[] = []
-    if (fromMs) args.push(`from: ${fromMs}`)
-    if (toMs) args.push(`to: ${toMs}`)
-    args.push('limit: 500')
-
-    const data = await gql(`{
-      vendTransactionSummaries(${args.join(', ')}) {
+    const data = await gql(`query($deviceIds: [String!], $from: Float, $to: Float, $limit: Int) {
+      vendTransactionSummaries(deviceIds: $deviceIds, from: $from, to: $to, limit: $limit) {
         txno deviceId startedAt status productName price paymentMethod dispenseSuccess dispenseChannel dispenseElapsed invoiceNo invoiceRandom refundStatus
       }
-    }`)
+    }`, { deviceIds, from: fromMs || undefined, to: toMs || undefined, limit: 500 })
 
-    let list: TxSummary[] = data.vendTransactionSummaries || []
-
-    // Filter by operator's devices (always — ensures operator isolation)
-    const operatorDevices = selectedDevices.value.length > 0
-      ? new Set(selectedDevices.value)
-      : new Set(vmList.value.map(v => v.hidCode).filter(Boolean))
-    if (operatorDevices.size > 0) {
-      list = list.filter(t => operatorDevices.has(t.deviceId))
-    }
-
-    transactions.value = list
+    transactions.value = data.vendTransactionSummaries || []
   } catch (e: any) {
     console.error('loadTransactions failed:', e)
   }
@@ -161,21 +154,7 @@ function dispResult(tx: TxSummary) {
   return '-'
 }
 
-// Payment method label map (loaded from API)
-const paymentMethodMap = ref<Record<string, string>>({})
-
-async function loadPaymentMethods() {
-  try {
-    const data = await gql(`{ paymentMethods { key name } }`)
-    const map: Record<string, string> = {}
-    for (const pm of (data.paymentMethods || [])) map[pm.key] = pm.name
-    paymentMethodMap.value = map
-  } catch {}
-}
-
-function methodLabel(m: string) {
-  return paymentMethodMap.value[m] || m || '-'
-}
+const { map: paymentMethodMap, label: methodLabel, ensure: ensurePaymentMethods } = usePaymentMethods()
 
 function refundLabel(s: string) {
   const map: Record<string, string> = {
@@ -373,12 +352,8 @@ const chartOption = computed(() => {
   }
 })
 
-onMounted(async () => {
+onMounted(() => {
   initDateRange()
-  try {
-    const data = await gql(`query($code: String!) { operatorByCode(code: $code) { name } }`, { code: operatorId })
-    if (data.operatorByCode?.name) operatorName.value = data.operatorByCode.name
-  } catch {}
   loadData()
 })
 function csvRows() {

@@ -88,6 +88,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { gql } from '../../composables/useGraphQL'
+import { usePaymentMethods } from '../../composables/usePaymentMethods'
 import PageHeader from '../../components/PageHeader.vue'
 
 const route = useRoute()
@@ -99,74 +100,36 @@ const error = ref('')
 const timeline = ref<any>(null)
 const operatorName = ref('營運商')
 
+const { label: pmLabel, ensure: ensurePaymentMethods } = usePaymentMethods()
+
 onMounted(async () => {
-  // Load payment method labels
   try {
-    const pmData = await gql(`{ paymentMethods { key name } }`)
-    const map: Record<string, string> = {}
-    for (const pm of (pmData.paymentMethods || [])) map[pm.key] = pm.name
-    paymentMethodMap.value = map
-  } catch {}
-  try {
-    const result = await gql(`
-      query GetTimeline($txno: String!) {
-        sessionTimeline(txno: $txno) {
-          session {
-            sid
-            deviceId
-            startedAt
-            endedAt
-            status
+    // Single combined query + paymentMethods cache in parallel
+    const [result] = await Promise.all([
+      gql(`
+        query GetTimeline($txno: String!, $opCode: String!) {
+          sessionTimeline(txno: $txno) {
+            session { sid deviceId startedAt endedAt status }
+            transaction {
+              txno sid oid startedAt endedAt status
+              productName price paymentMethod
+              dispenseSuccess dispenseChannel dispenseElapsed
+              invoiceNo invoiceRandom refundStatus
+            }
+            events { timestamp receivedAt event stateMachine trigger state arg can }
           }
-          transaction {
-            txno
-            sid
-            oid
-            startedAt
-            endedAt
-            status
-            productName
-            price
-            paymentMethod
-            dispenseSuccess
-            dispenseChannel
-            dispenseElapsed
-            invoiceNo
-            invoiceRandom
-            refundStatus
-          }
-          events {
-            timestamp
-            receivedAt
-            event
-            stateMachine
-            trigger
-            state
-            arg
-            can
-          }
+          operatorByCode(code: $opCode) { name }
         }
-      }
-    `, { txno: txno.value })
+      `, { txno: txno.value, opCode: operatorId.value }),
+      ensurePaymentMethods(),
+    ])
 
     const raw = result.sessionTimeline
     if (raw?.events) {
       raw.events = raw.events.filter((e: any) => e.can !== 0)
     }
     timeline.value = raw
-    
-    // Fetch operator name
-    const opResult = await gql(`
-      query GetOperator($code: String!) {
-        operatorByCode(code: $code) {
-          name
-        }
-      }
-    `, { code: operatorId.value })
-    
-    if (opResult.operatorByCode) {
-      operatorName.value = opResult.operatorByCode.name
-    }
+    if (result.operatorByCode?.name) operatorName.value = result.operatorByCode.name
   } catch (e: any) {
     error.value = e.message || '載入失敗'
   } finally {
@@ -253,11 +216,8 @@ const getElapsed = (from: string, to: string): string => {
   return `+${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
 }
 
-// Payment method label map (loaded from API)
-const paymentMethodMap = ref<Record<string, string>>({})
-
 const getPaymentMethodLabel = (method: string): string => {
-  return paymentMethodMap.value[method] || method || '-'
+  return pmLabel(method)
 }
 
 const getStatusLabel = (status: string): string => {
