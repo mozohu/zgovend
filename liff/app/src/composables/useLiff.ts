@@ -39,21 +39,15 @@ async function init() {
         isLoggedIn.value = true
         isReady.value = true
 
-        // Fetch real roles from DB via upsert
+        // Fetch real roles from DB via loginUser
         try {
-          const data = await gql(`mutation($input: UpsertUserInput!) {
-            upsertUser(input: $input) { lineUserId isAdmin operatorRoles { operatorId roles } }
-          }`, {
-            input: {
-              lineUserId: DEV_USER_ID,
-              displayName: DEV_DISPLAY_NAME,
-              pictureUrl: '',
-            }
-          })
-          _isAdmin.value = data.upsertUser?.isAdmin || false
-          operatorRoles.value = data.upsertUser?.operatorRoles || []
+          const data = await gql(`mutation {
+            loginUser { user { lineUserId isAdmin operatorRoles { operatorId roles } } }
+          }`)
+          _isAdmin.value = data.loginUser?.user?.isAdmin || false
+          operatorRoles.value = data.loginUser?.user?.operatorRoles || []
         } catch (e) {
-          console.warn('Dev mode: upsertUser failed, using full access fallback')
+          console.warn('Dev mode: loginUser failed, using full access fallback')
           _isAdmin.value = true
           operatorRoles.value = []
         }
@@ -88,19 +82,13 @@ async function init() {
 
         if (profile.value) {
           try {
-            const data = await gql(`mutation($input: UpsertUserInput!) {
-              upsertUser(input: $input) { lineUserId isAdmin operatorRoles { operatorId roles } }
-            }`, {
-              input: {
-                lineUserId: profile.value.userId,
-                displayName: profile.value.displayName,
-                pictureUrl: profile.value.pictureUrl || '',
-              }
-            })
-            _isAdmin.value = data.upsertUser?.isAdmin || false
-            operatorRoles.value = data.upsertUser?.operatorRoles || []
+            const data = await gql(`mutation {
+              loginUser { user { lineUserId isAdmin operatorRoles { operatorId roles } } }
+            }`)
+            _isAdmin.value = data.loginUser?.user?.isAdmin || false
+            operatorRoles.value = data.loginUser?.user?.operatorRoles || []
           } catch (e) {
-            console.warn('upsertUser failed:', e)
+            console.warn('loginUser failed:', e)
           }
         }
       }

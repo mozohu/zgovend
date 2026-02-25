@@ -4,6 +4,20 @@ import { gql } from '../../composables/useGraphQL'
 import { useLiff } from '../../composables/useLiff'
 import PageHeader from '../../components/PageHeader.vue'
 import ExportButtons from '../../components/ExportButtons.vue'
+import { useSpeech } from '../../composables/useSpeech'
+
+const { speaking, loading: speechLoading, speakLines, stop: stopSpeech } = useSpeech()
+
+function readPicklist() {
+  const lines = filteredRows.value
+    .filter(r => r.totalNeeded > 0)
+    .map(r => `${r.productName}，補 ${r.totalNeeded} 個`)
+  if (lines.length === 0) {
+    speakLines(['所有商品庫存充足，不需要補貨'])
+  } else {
+    speakLines([`共 ${lines.length} 種商品需要補貨`, ...lines, '播報完畢'])
+  }
+}
 
 interface SummaryVm { vmid: string; currentQty: number; maxQty: number; needed: number }
 interface SummaryRow {
@@ -117,6 +131,9 @@ const csvHeaders = ['營運商', '商品編號', '商品名稱', '售價', '目�
 <template>
   <div class="page">
     <PageHeader :crumbs="[{ label: '巡補員', to: '/' }, { label: '撿貨清單' }]">
+      <button class="speak-btn" @click="speaking ? stopSpeech() : readPicklist()" :title="speaking ? '停止播報' : '語音播報'" :disabled="speechLoading">
+        {{ speechLoading ? '⏳' : speaking ? '⏹️' : '🔊' }}
+      </button>
       <ExportButtons filename="picklist" :headers="csvHeaders" :rows="csvRows" />
     </PageHeader>
 
@@ -257,6 +274,13 @@ const csvHeaders = ['營運商', '商品編號', '商品名稱', '售價', '目�
   display: flex; justify-content: space-between; align-items: center;
   padding: 8px 4px; font-size: 13px; color: #666;
 }
+
+/* Speak button */
+.speak-btn {
+  background: none; border: 1px solid #ddd; border-radius: 8px;
+  padding: 4px 10px; font-size: 18px; cursor: pointer; line-height: 1;
+}
+.speak-btn:active { background: #f0f0f0; }
 
 /* Table */
 .table-wrap {

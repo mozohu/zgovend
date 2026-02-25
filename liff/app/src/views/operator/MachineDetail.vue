@@ -3,6 +3,72 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { gql } from '../../composables/useGraphQL'
 import PageHeader from '../../components/PageHeader.vue'
+import { useSpeech } from '../../composables/useSpeech'
+
+const { speaking, loading: speechLoading, speakLines, stop: stopSpeech } = useSpeech()
+
+function readMachineDetail() {
+  const lines: string[] = []
+
+  // 狀態
+  const stat = statLabel.value?.label || ''
+  if (isOnline.value) {
+    lines.push(`${vmid}目前在線${stat ? `，${stat}` : ''}。`)
+  } else {
+    let ago = ''
+    if (currentHb.value?.receivedAt) {
+      const diffMin = Math.floor((Date.now() - new Date(currentHb.value.receivedAt).getTime()) / 60000)
+      if (diffMin < 60) ago = `${diffMin}分鐘前`
+      else if (diffMin < 1440) ago = `${Math.floor(diffMin / 60)}小時前`
+      else ago = `${Math.floor(diffMin / 1440)}天前`
+      lines.push(`${vmid}目前離線，最後心跳是${ago}。`)
+    } else {
+      lines.push(`${vmid}目前離線，從未收到心跳。`)
+    }
+  }
+
+  // 錯誤旗標
+  if (errFlags.value) {
+    lines.push(`注意，機台有異常旗標：${errFlags.value}。`)
+  }
+
+  // 溫度
+  const latestTemp = tempHistory.value.length > 0 ? tempHistory.value[0]?.temperature : null
+  if (latestTemp !== null && latestTemp !== undefined) {
+    if (latestTemp >= 15) {
+      lines.push(`警告，機台溫度${latestTemp}度，明顯偏高。`)
+    } else if (latestTemp >= 11) {
+      lines.push(`機台溫度${latestTemp}度，偏高，留意冷卻。`)
+    } else {
+      lines.push(`機台溫度${latestTemp}度，正常。`)
+    }
+  }
+
+  // 庫存
+  const ss = stockSummary.value
+  if (ss) {
+    if (ss.pct <= 20) {
+      lines.push(`庫存偏低，剩${ss.pct}%，需要補貨。`)
+    } else if (ss.pct <= 50) {
+      lines.push(`庫存${ss.pct}%，留意補貨。`)
+    } else {
+      lines.push(`庫存整體${ss.pct}%，充足。`)
+    }
+
+    // 空貨道
+    const emptyChannels = stockChannels.value.filter((c: any) => c.quantity === 0 && c.max > 0)
+    if (emptyChannels.length > 0) {
+      if (emptyChannels.length <= 3) {
+        const names = emptyChannels.map((c: any) => `貨道${c.chid}的${c.productName}`).join('、')
+        lines.push(`${names}已經空了。`)
+      } else {
+        lines.push(`有${emptyChannels.length}個貨道已空。`)
+      }
+    }
+  }
+
+  speakLines(lines)
+}
 
 // ECharts tree-shaken imports
 import { use } from 'echarts/core'
@@ -232,7 +298,11 @@ onMounted(async () => {
       { label: operatorName, to: `/operator/${operatorId}` },
       { label: '機台狀態及庫存', to: `/operator/${operatorId}/machine-status` },
       { label: vmid },
-    ]" :onRefresh="loadDetail" />
+    ]" :onRefresh="loadDetail">
+      <button class="speak-btn" @click="speaking ? stopSpeech() : readMachineDetail()" :title="speaking ? '停止播報' : '語音摘要'" :disabled="speechLoading || loading">
+        {{ speechLoading ? '⏳' : speaking ? '⏹️' : '🔊' }}
+      </button>
+    </PageHeader>
 
     <div v-if="loading" class="placeholder">載入中…</div>
     <template v-else>
@@ -302,6 +372,13 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.speak-btn {
+  background: none; border: 1px solid #ddd; border-radius: 8px;
+  padding: 4px 10px; font-size: 18px; cursor: pointer; line-height: 1;
+}
+.speak-btn:active { background: #f0f0f0; }
+.speak-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
 .status-card {
   margin: 12px 16px;
   background: #fff;

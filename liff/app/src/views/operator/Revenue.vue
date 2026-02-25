@@ -5,6 +5,62 @@ import { gql } from '../../composables/useGraphQL'
 import { usePaymentMethods } from '../../composables/usePaymentMethods'
 import PageHeader from '../../components/PageHeader.vue'
 import ExportButtons from '../../components/ExportButtons.vue'
+import { useSpeech } from '../../composables/useSpeech'
+
+const { speaking, loading: speechLoading, speakLines, stop: stopSpeech } = useSpeech()
+
+function buildSummaryText(): string[] {
+  const lines: string[] = []
+  const from = dateFrom.value?.replace(/-/g, '/') || ''
+  const to = dateTo.value?.replace(/-/g, '/') || ''
+
+  lines.push(`${operatorName.value}，${from} 到 ${to} 營收報告。`)
+  lines.push(`總營收 ${totalRevenue.value} 元，共 ${transactions.value.length} 筆交易，${successCount.value} 筆出貨成功。`)
+
+  const failCount = transactions.value.filter(t => t.dispenseSuccess === false).length
+  if (failCount > 0) lines.push(`${failCount} 筆出貨失敗。`)
+
+  const refundCount = transactions.value.filter(t => t.refundStatus === 'refunded').length
+  if (refundCount > 0) lines.push(`${refundCount} 筆已退款。`)
+
+  // Top products
+  const prodMap = new Map<string, { count: number; revenue: number }>()
+  for (const t of transactions.value) {
+    if (!t.dispenseSuccess || !t.productName) continue
+    const p = prodMap.get(t.productName) || { count: 0, revenue: 0 }
+    p.count++
+    p.revenue += t.price || 0
+    prodMap.set(t.productName, p)
+  }
+  const topProducts = [...prodMap.entries()]
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 3)
+  if (topProducts.length > 0) {
+    const prodText = topProducts.map(([name, { count }]) => `${name} ${count} 筆`).join('、')
+    lines.push(`熱銷商品：${prodText}。`)
+  }
+
+  // Payment method breakdown
+  const methodMap = new Map<string, number>()
+  for (const t of transactions.value) {
+    if (!t.dispenseSuccess || !t.paymentMethod) continue
+    methodMap.set(t.paymentMethod, (methodMap.get(t.paymentMethod) || 0) + (t.price || 0))
+  }
+  if (methodMap.size > 0 && totalRevenue.value > 0) {
+    const methodText = [...methodMap.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([m, rev]) => `${methodLabel(m)} ${Math.round(rev / totalRevenue.value * 100)}%`)
+      .join('、')
+    lines.push(`付款方式：${methodText}。`)
+  }
+
+  lines.push('播報完畢。')
+  return lines
+}
+
+function readRevenueSummary() {
+  speakLines(buildSummaryText())
+}
 
 // ECharts tree-shaken imports
 import { use } from 'echarts/core'
@@ -368,6 +424,9 @@ const csvHeaders = ['交易號', '設備ID', '商品', '金額', '付款方式',
       { label: operatorName, to: `/operator/${operatorId}` },
       { label: '營收與訂單' },
     ]" :onRefresh="loadData">
+      <button class="speak-btn" @click="speaking ? stopSpeech() : readRevenueSummary()" :title="speaking ? '停止播報' : 'AI 語音摘要'" :disabled="speechLoading || loading">
+        {{ speechLoading ? '⏳' : speaking ? '⏹️' : '🔊' }}
+      </button>
       <ExportButtons filename="revenue" :headers="csvHeaders" :rows="csvRows" />
     </PageHeader>
 
@@ -570,6 +629,14 @@ const csvHeaders = ['交易號', '設備ID', '商品', '金額', '付款方式',
 }
 .tx-txno { font-family: monospace; }
 .tx-invoice { color: #7b1fa2; }
+
+/* Speak button */
+.speak-btn {
+  background: none; border: 1px solid #ddd; border-radius: 8px;
+  padding: 4px 10px; font-size: 18px; cursor: pointer; line-height: 1;
+}
+.speak-btn:active { background: #f0f0f0; }
+.speak-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* ECharts */
 .chart-section {

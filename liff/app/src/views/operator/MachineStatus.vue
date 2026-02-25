@@ -4,6 +4,51 @@ import { useRoute } from 'vue-router'
 import { gql } from '../../composables/useGraphQL'
 import PageHeader from '../../components/PageHeader.vue'
 import ExportButtons from '../../components/ExportButtons.vue'
+import { useSpeech } from '../../composables/useSpeech'
+
+const { speaking, loading: speechLoading, speakLines, stop: stopSpeech } = useSpeech()
+
+function readMachineStatus() {
+  const lines: string[] = []
+  const total = machines.value.length
+  const online = onlineCount.value
+  const offline = total - online
+
+  lines.push(`${operatorName.value}目前有${total}台機台，${online}台在線${offline > 0 ? `，${offline}台離線` : '，全部在線'}。`)
+
+  // 離線機台點名
+  const offlineMachines = machines.value.filter(m => !m.online)
+  for (const m of offlineMachines) {
+    const loc = m.locationName ? `，位於${m.locationName}` : ''
+    let ago = ''
+    if (m.lastHeartbeat) {
+      const diffMin = Math.floor((Date.now() - new Date(m.lastHeartbeat).getTime()) / 60000)
+      if (diffMin < 60) ago = `，已${diffMin}分鐘沒有心跳`
+      else if (diffMin < 1440) ago = `，已超過${Math.floor(diffMin / 60)}小時沒有心跳`
+      else ago = `，已超過${Math.floor(diffMin / 1440)}天沒有心跳`
+    } else {
+      ago = '，從未收到心跳'
+    }
+    lines.push(`離線：${m.vmid}${loc}${ago}。`)
+  }
+
+  // 庫存警示
+  const lowStock = machines.value.filter(m => m.stockPct !== null && m.stockPct <= 20)
+  const midStock = machines.value.filter(m => m.stockPct !== null && m.stockPct > 20 && m.stockPct <= 50)
+
+  for (const m of lowStock) {
+    lines.push(`${m.vmid}庫存偏低，剩${m.stockPct}%，需要補貨。`)
+  }
+  for (const m of midStock) {
+    lines.push(`${m.vmid}庫存${m.stockPct}%，留意補貨。`)
+  }
+
+  if (offlineMachines.length === 0 && lowStock.length === 0 && midStock.length === 0) {
+    lines.push('所有機台運作正常，庫存充足。')
+  }
+
+  speakLines(lines)
+}
 
 const route = useRoute()
 const operatorId = route.params.operatorId as string
@@ -117,6 +162,9 @@ const csvHeaders = ['機台ID', 'HID', '位置', '狀態', '庫存']
       { label: operatorName, to: `/operator/${operatorId}` },
       { label: '機台狀態及庫存' },
     ]" :onRefresh="loadStatus">
+      <button class="speak-btn" @click="speaking ? stopSpeech() : readMachineStatus()" :title="speaking ? '停止播報' : '語音摘要'" :disabled="speechLoading || loading">
+        {{ speechLoading ? '⏳' : speaking ? '⏹️' : '🔊' }}
+      </button>
       <ExportButtons filename="machine-status" :headers="csvHeaders" :rows="csvRows" />
     </PageHeader>
 
@@ -168,6 +216,13 @@ const csvHeaders = ['機台ID', 'HID', '位置', '狀態', '庫存']
 </template>
 
 <style scoped>
+.speak-btn {
+  background: none; border: 1px solid #ddd; border-radius: 8px;
+  padding: 4px 10px; font-size: 18px; cursor: pointer; line-height: 1;
+}
+.speak-btn:active { background: #f0f0f0; }
+.speak-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
 .summary-bar {
   display: flex;
   justify-content: space-around;
