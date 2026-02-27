@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { gql } from '../../composables/useGraphQL'
 import PageHeader from '../../components/PageHeader.vue'
@@ -93,8 +93,26 @@ const vm = ref<any>(null)
 // Current heartbeat
 const currentHb = ref<any>(null)
 
-// Temperature history
+// Temperature: raw (for latest reading) + buckets (for chart)
 const tempHistory = ref<{ temperature: number | null; receivedAt: string }[]>([])
+
+interface TempBucket {
+  bucket: string
+  deviceId: string
+  avgTemp: number | null
+  minTemp: number | null
+  maxTemp: number | null
+  count: number | null
+}
+const tempBuckets = ref<TempBucket[]>([])
+const tempScale = ref<'day' | 'week' | 'month'>('day')
+const tempLoading = ref(false)
+
+const scaleLabels: Record<string, { label: string; granularity: string }> = {
+  day:   { label: '本日', granularity: '每 5 分鐘平均' },
+  week:  { label: '本週', granularity: '每 30 分鐘平均' },
+  month: { label: '本月', granularity: '每 2 小時平均' },
+}
 
 // Stock
 const stock = ref<any>(null)
@@ -166,30 +184,40 @@ function formatHeartbeat(ts: string | null) {
   return d.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })
 }
 
-// ECharts option for temperature history
-const chartOption = computed(() => {
-  const points = tempHistory.value
-    .filter(p => p.temperature !== null)
-    .map(p => ({
-      time: new Date(p.receivedAt),
-      temp: p.temperature as number,
-    }))
-    .sort((a, b) => a.time.getTime() - b.time.getTime())
+// Parse bucket string "2026-02-27T14:30" to display label
+function bucketLabel(bucket: string, scale: string): string {
+  // bucket is already in Asia/Taipei time
+  const [datePart, timePart] = bucket.split('T')
+  const [, mm, dd] = datePart.split('-')
+  if (scale === 'day') return timePart  // "14:30"
+  if (scale === 'week') return `${mm}/${dd} ${timePart}`  // "02/27 14:30"
+  return `${mm}/${dd}`  // "02/27"
+}
 
+// ECharts option for temperature buckets
+const chartOption = computed(() => {
+  const points = tempBuckets.value.filter(p => p.avgTemp !== null)
   if (points.length === 0) return null
 
-  const times = points.map(p =>
-    p.time.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
-  )
-  const temps = points.map(p => p.temp)
-  const showZoom = points.length > 60
+  const scale = tempScale.value
+  const labels = points.map(p => bucketLabel(p.bucket, scale))
+  const avgData = points.map(p => p.avgTemp)
+  const minData = points.map(p => p.minTemp)
+  const maxData = points.map(p => p.maxTemp)
 
   return {
     tooltip: {
       trigger: 'axis',
       formatter: (params: any) => {
-        const d = params[0]
-        return `<b>${d.name}</b><br/>溫度：${d.value}°C`
+        const idx = params[0]?.dataIndex
+        if (idx === undefined) return ''
+        const p = points[idx]
+        const label = bucketLabel(p.bucket, scale)
+        return `<b>${label}</b><br/>` +
+          `平均 ${p.avgTemp}°C<br/>` +
+          `最低 ${p.minTemp}°C ▼<br/>` +
+          `最高 ${p.maxTemp}°C ▲<br/>` +
+          `<span style="color:#aaa">(${p.count} 筆原始資料)</span>`
       },
       textStyle: { fontSize: 13 },
     },
@@ -197,12 +225,12 @@ const chartOption = computed(() => {
       left: 40,
       right: 12,
       top: 10,
-      bottom: showZoom ? 56 : 28,
+      bottom: points.length > 72 ? 56 : 28,
       containLabel: false,
     },
     xAxis: {
       type: 'category',
-      data: times,
+      data: labels,
       axisTick: { show: false },
       axisLabel: {
         fontSize: 10,
@@ -218,27 +246,78 @@ const chartOption = computed(() => {
       axisLine: { show: false },
       splitLine: { lineStyle: { color: '#f0f0f0' } },
     },
-    series: [{
-      type: 'line',
-      data: temps,
-      smooth: true,
-      symbol: points.length > 100 ? 'none' : 'circle',
-      symbolSize: 4,
-      lineStyle: { color: '#4a90d9', width: 2 },
-      itemStyle: { color: '#4a90d9' },
-      areaStyle: { color: 'rgba(74,144,217,0.08)' },
+    dataZoom: [{
+      type: 'slider',
+      start: 75,  // 預設顯示最近 25%
+      end: 100,
+      height: 20,
+      bottom: 6,
     }],
-    ...(showZoom ? {
-      dataZoom: [{
-        type: 'slider',
-        start: Math.max(0, 100 - (60 / points.length) * 100),
-        end: 100,
-        height: 20,
-        bottom: 6,
-      }],
-    } : {}),
+    series: [
+      // min/max 範圍帶：用兩條透明線 + 中間 areaStyle
+      {
+        name: '最高',
+        type: 'line',
+        data: maxData,
+        smooth: true,
+        symbol: 'none',
+        lineStyle: { opacity: 0 },
+        areaStyle: { color: 'rgba(74,144,217,0.12)' },
+        stack: 'range',
+        z: 1,
+      },
+      {
+        name: '最低',
+        type: 'line',
+        data: minData,
+        smooth: true,
+        symbol: 'none',
+        lineStyle: { opacity: 0 },
+        areaStyle: { color: '#fff', opacity: 1 },
+        stack: 'range',
+        z: 1,
+      },
+      // 平均溫度折線
+      {
+        name: '平均',
+        type: 'line',
+        data: avgData,
+        smooth: true,
+        symbol: points.length > 100 ? 'none' : 'circle',
+        symbolSize: 4,
+        lineStyle: { color: '#4a90d9', width: 2 },
+        itemStyle: { color: '#4a90d9' },
+        z: 2,
+      },
+    ],
   }
 })
+
+// Resolve deviceId (hidCode may come from query or vm lookup)
+function resolvedDeviceId(): string {
+  return hidCode || vm.value?.hidCode || ''
+}
+
+async function loadTempBuckets() {
+  const deviceId = resolvedDeviceId()
+  if (!deviceId) { tempBuckets.value = []; return }
+  tempLoading.value = true
+  try {
+    const data = await gql(`query($deviceId: String!, $scale: String!) {
+      tempBuckets(deviceId: $deviceId, scale: $scale) { bucket deviceId avgTemp minTemp maxTemp count }
+    }`, { deviceId, scale: tempScale.value })
+    tempBuckets.value = data.tempBuckets || []
+  } catch (e: any) {
+    console.error('loadTempBuckets failed:', e)
+  } finally {
+    tempLoading.value = false
+  }
+}
+
+async function switchTempScale(scale: 'day' | 'week' | 'month') {
+  tempScale.value = scale
+  await loadTempBuckets()
+}
 
 async function loadDetail() {
   loading.value = true
@@ -248,16 +327,19 @@ async function loadDetail() {
       const vmData = await gql(`query($vmid: String!) { vmByVmid(vmid: $vmid) { vmid hidCode locationName operatorId } }`, { vmid })
       vm.value = vmData.vmByVmid
       if (vm.value?.hidCode) {
-        await loadHeartbeatData(vm.value.hidCode)
+        await Promise.all([loadHeartbeatData(vm.value.hidCode), loadTempBuckets()])
       }
     } else {
-      const data = await gql(`query($vmid: String!, $deviceId: String!, $limit: Int, $opId: String) {
-        vmByVmid(vmid: $vmid) { vmid hidCode locationName operatorId }
-        heartbeat(deviceId: $deviceId) { deviceId status content payload receivedAt }
-        tempHistory(deviceId: $deviceId, limit: $limit) { temperature receivedAt }
-        stock(deviceId: $deviceId) { deviceId channels { chid p_id quantity max } updatedAt }
-        products(operatorId: $opId, status: "active") { code name }
-      }`, { vmid, deviceId, limit: 1440, opId: operatorId })
+      const [data] = await Promise.all([
+        gql(`query($vmid: String!, $deviceId: String!, $limit: Int, $opId: String) {
+          vmByVmid(vmid: $vmid) { vmid hidCode locationName operatorId }
+          heartbeat(deviceId: $deviceId) { deviceId status content payload receivedAt }
+          tempHistory(deviceId: $deviceId, limit: $limit) { temperature receivedAt }
+          stock(deviceId: $deviceId) { deviceId channels { chid p_id quantity max } updatedAt }
+          products(operatorId: $opId, status: "active") { code name }
+        }`, { vmid, deviceId, limit: 1, opId: operatorId }),
+        loadTempBuckets(),
+      ])
 
       vm.value = data.vmByVmid
       currentHb.value = data.heartbeat
@@ -277,7 +359,7 @@ async function loadHeartbeatData(deviceId: string) {
     heartbeat(deviceId: $deviceId) { deviceId status content payload receivedAt }
     tempHistory(deviceId: $deviceId, limit: $limit) { temperature receivedAt }
     stock(deviceId: $deviceId) { deviceId channels { chid p_id quantity max } updatedAt }
-  }`, { deviceId, limit: 1440 })
+  }`, { deviceId, limit: 1 })
   currentHb.value = data.heartbeat
   tempHistory.value = data.tempHistory || []
   stock.value = data.stock
@@ -337,7 +419,19 @@ onMounted(async () => {
       <!-- 溫度歷史圖表 -->
       <div class="chart-section">
         <h3 class="section-title">溫度歷史</h3>
-        <div v-if="chartOption" class="chart-wrap">
+        <!-- 尺度切換 -->
+        <div class="scale-tabs">
+          <button
+            v-for="s in (['day', 'week', 'month'] as const)"
+            :key="s"
+            :class="['scale-tab', { active: tempScale === s }]"
+            @click="switchTempScale(s)"
+            :disabled="tempLoading"
+          >{{ scaleLabels[s].label }}</button>
+          <span class="scale-granularity">{{ scaleLabels[tempScale].granularity }}</span>
+        </div>
+        <div v-if="tempLoading" class="placeholder">載入中…</div>
+        <div v-else-if="chartOption" class="chart-wrap">
           <VChart :option="chartOption" autoresize style="height: 240px;" />
         </div>
         <div v-else class="placeholder">尚無溫度資料</div>
@@ -440,6 +534,38 @@ onMounted(async () => {
   padding: 12px 8px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
+
+/* Scale tabs */
+.scale-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.scale-tab {
+  padding: 4px 14px;
+  border: 1px solid #ddd;
+  border-radius: 16px;
+  background: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.scale-tab.active {
+  background: #4a90d9;
+  color: #fff;
+  border-color: #4a90d9;
+}
+.scale-tab:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.scale-granularity {
+  font-size: 12px;
+  color: #aaa;
+  margin-left: 4px;
+}
+
 /* Stock */
 .stock-list {
   background: #fff;
