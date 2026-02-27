@@ -248,24 +248,13 @@ const chartOption = computed(() => {
     },
     dataZoom: [{
       type: 'slider',
-      start: 75,  // 預設顯示最近 25%
+      start: points.length <= 72 ? 0 : Math.max(0, 100 - (72 / points.length) * 100),
       end: 100,
       height: 20,
       bottom: 6,
     }],
     series: [
-      // min/max 範圍帶：用兩條透明線 + 中間 areaStyle
-      {
-        name: '最高',
-        type: 'line',
-        data: maxData,
-        smooth: true,
-        symbol: 'none',
-        lineStyle: { opacity: 0 },
-        areaStyle: { color: 'rgba(74,144,217,0.12)' },
-        stack: 'range',
-        z: 1,
-      },
+      // min/max 範圍帶：底層 min（透明），上層 max-min 差值（藍色半透明）
       {
         name: '最低',
         type: 'line',
@@ -273,7 +262,18 @@ const chartOption = computed(() => {
         smooth: true,
         symbol: 'none',
         lineStyle: { opacity: 0 },
-        areaStyle: { color: '#fff', opacity: 1 },
+        areaStyle: { opacity: 0 },
+        stack: 'range',
+        z: 1,
+      },
+      {
+        name: '溫度範圍',
+        type: 'line',
+        data: points.map(p => ((p.maxTemp ?? 0) - (p.minTemp ?? 0))),
+        smooth: true,
+        symbol: 'none',
+        lineStyle: { opacity: 0 },
+        areaStyle: { color: 'rgba(74,144,217,0.15)' },
         stack: 'range',
         z: 1,
       },
