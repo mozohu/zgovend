@@ -244,6 +244,11 @@ onMounted(async () => { await Promise.all([refreshRoles(), loadData()]) })
         <span class="role-label">我的問題單</span>
         <span class="role-desc">查詢處理進度</span>
       </router-link>
+      <router-link to="/consumer/join" class="role-card role-card-sub">
+        <span class="role-icon">🎟️</span>
+        <span class="role-label">輸入邀請碼</span>
+        <span class="role-desc">加入營運商團隊</span>
+      </router-link>
 
       <!-- 營運管理：列出可管理的營運商 -->
       <template v-if="isOperator || isAdmin">
@@ -318,6 +323,11 @@ onMounted(async () => { await Promise.all([refreshRoles(), loadData()]) })
           <span class="role-icon">📦</span>
           <span class="role-label">取貨單管理</span>
           <span class="role-desc">查看與處理線上訂單</span>
+        </router-link>
+        <router-link to="/admin/invitations" class="role-card role-card-sub">
+          <span class="role-icon">🎟️</span>
+          <span class="role-label">邀請碼管理</span>
+          <span class="role-desc">建立與管理邀請碼</span>
         </router-link>
       </template>
     </nav>

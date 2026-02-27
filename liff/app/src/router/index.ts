@@ -22,6 +22,7 @@ const router = createRouter({
         { path: 'cart', name: 'consumer-cart', component: () => import('../views/consumer/Cart.vue') },
         { path: 'orders', name: 'consumer-orders', component: () => import('../views/consumer/OrderList.vue') },
         { path: 'orders/:id', name: 'consumer-order-detail', component: () => import('../views/consumer/OrderDetail.vue') },
+        { path: 'join', name: 'consumer-join', component: () => import('../views/consumer/JoinByInvite.vue') },
       ],
     },
     // === 營運者（帶 operatorId）===
@@ -64,6 +65,7 @@ const router = createRouter({
         { path: 'hids', name: 'admin-hids', component: () => import('../views/admin/HidList.vue') },
         { path: 'machines', name: 'admin-machines', component: () => import('../views/admin/MachineList.vue') },
         { path: 'online-orders', name: 'admin-online-orders', component: () => import('../views/admin/OnlineOrders.vue') },
+        { path: 'invitations', name: 'admin-invitations', component: () => import('../views/admin/InvitationList.vue') },
       ],
     },
     // Catch-all

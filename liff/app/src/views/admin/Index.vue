@@ -11,6 +11,7 @@ import PageHeader from '../../components/PageHeader.vue'
       <router-link to="/admin/hids" class="menu-item">🏭 機碼設定</router-link>
       <router-link to="/admin/machines" class="menu-item">🖥️ 機台管理</router-link>
       <router-link to="/admin/online-orders" class="menu-item">📦 取貨單管理</router-link>
+      <router-link to="/admin/invitations" class="menu-item">🎟️ 邀請碼管理</router-link>
     </nav>
   </div>
 </template>
