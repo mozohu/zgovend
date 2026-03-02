@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { gql } from '../../composables/useGraphQL'
 import PageHeader from '../../components/PageHeader.vue'
+import { FilterBar, FilterSearch, FilterSelect, FilterButtonGroup } from '../../components/filters'
 
 const router = useRouter()
 const products = ref<any[]>([])
@@ -132,42 +133,38 @@ const hasFilters = computed(() => search.value || selectedOp.value || selectedLo
 
     <div class="content">
       <!-- Search & Filter Bar -->
-      <div class="filter-bar">
-        <input
-          v-model="search"
-          type="text"
-          class="search-input"
-          placeholder="搜尋商品名稱…"
+      <FilterBar
+        :count="filteredProducts.length"
+        :total="products.length"
+        count-label="件商品"
+        :has-filters="hasFilters"
+        @clear="clearFilters"
+      >
+        <FilterSearch v-model="search" placeholder="搜尋商品名稱…" />
+        <div class="fk-row">
+          <FilterSelect
+            v-model="selectedOp"
+            :options="operatorOptions.map(op => ({ value: op.code, label: op.name }))"
+            placeholder="全部營運商"
+          />
+          <FilterSelect
+            v-model="selectedLoc"
+            :options="locationOptions.map(loc => ({ value: loc, label: loc }))"
+            placeholder="全部地點"
+          />
+        </div>
+        <FilterButtonGroup
+          v-model="sortBy"
+          :options="[
+            { value: 'default', label: '預設' },
+            { value: 'price_asc', label: '價低' },
+            { value: 'price_desc', label: '價高' },
+            { value: 'stock_desc', label: '庫存多' },
+            { value: 'stock_asc', label: '庫存少' },
+          ]"
+          size="sm"
         />
-        <div class="filter-row">
-          <select v-model="selectedOp" class="filter-select">
-            <option value="">全部營運商</option>
-            <option v-for="op in operatorOptions" :key="op.code" :value="op.code">{{ op.name }}</option>
-          </select>
-          <select v-model="selectedLoc" class="filter-select">
-            <option value="">全部地點</option>
-            <option v-for="loc in locationOptions" :key="loc" :value="loc">{{ loc }}</option>
-          </select>
-        </div>
-        <div class="sort-row">
-          <button
-            v-for="s in [
-              { key: 'default', label: '預設' },
-              { key: 'price_asc', label: '價低' },
-              { key: 'price_desc', label: '價高' },
-              { key: 'stock_desc', label: '庫存多' },
-              { key: 'stock_asc', label: '庫存少' },
-            ]" :key="s.key"
-            class="sort-btn"
-            :class="{ active: sortBy === s.key }"
-            @click="sortBy = s.key"
-          >{{ s.label }}</button>
-        </div>
-        <div v-if="hasFilters" class="filter-status">
-          <span>{{ filteredProducts.length }} / {{ products.length }} 件商品</span>
-          <button class="clear-btn" @click="clearFilters">清除篩選</button>
-        </div>
-      </div>
+      </FilterBar>
 
       <div v-if="loading" class="loading">載入中…</div>
       <div v-else-if="!products.length" class="empty">目前沒有可購買的商品</div>
@@ -203,80 +200,7 @@ const hasFilters = computed(() => search.value || selectedOp.value || selectedLo
 .content { padding: 16px; max-width: 480px; margin: 0 auto; padding-bottom: 80px; }
 .loading, .empty { text-align: center; padding: 40px 0; color: #888; }
 
-/* Filter bar */
-.filter-bar {
-  margin-bottom: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.search-input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 10px 14px;
-  border: 1px solid #e0e0e0;
-  border-radius: 10px;
-  font-size: 14px;
-  outline: none;
-  background: #fff;
-  transition: border-color 0.2s;
-}
-.search-input:focus { border-color: #667eea; }
-.search-input::placeholder { color: #bbb; }
-.filter-row {
-  display: flex;
-  gap: 8px;
-}
-.filter-select {
-  flex: 1;
-  padding: 8px 10px;
-  border: 1px solid #e0e0e0;
-  border-radius: 10px;
-  font-size: 13px;
-  background: #fff;
-  color: #333;
-  outline: none;
-  appearance: auto;
-}
-.filter-select:focus { border-color: #667eea; }
-.sort-row {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.sort-btn {
-  padding: 5px 12px;
-  border: 1px solid #e0e0e0;
-  border-radius: 16px;
-  font-size: 12px;
-  background: #fff;
-  color: #666;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.15s;
-}
-.sort-btn.active {
-  background: #667eea;
-  color: #fff;
-  border-color: #667eea;
-}
-.sort-btn:active { opacity: 0.7; }
-.filter-status {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 12px;
-  color: #888;
-}
-.clear-btn {
-  border: none;
-  background: none;
-  color: #667eea;
-  font-size: 12px;
-  cursor: pointer;
-  padding: 2px 6px;
-  font-weight: 500;
-}
+.fk-row { display: flex; gap: 8px; }
 
 /* Product grid */
 .product-grid { display: flex; flex-direction: column; gap: 12px; }

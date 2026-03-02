@@ -5,6 +5,7 @@ import { gql } from '../../composables/useGraphQL'
 import { usePaymentMethods } from '../../composables/usePaymentMethods'
 import PageHeader from '../../components/PageHeader.vue'
 import ExportButtons from '../../components/ExportButtons.vue'
+import { FilterBar, FilterDateRange, FilterChips } from '../../components/filters'
 import { useSpeech } from '../../composables/useSpeech'
 
 const { speaking, loading: speechLoading, speakLines, stop: stopSpeech } = useSpeech()
@@ -220,14 +221,6 @@ function refundLabel(s: string) {
   return map[s] || s
 }
 
-function toggleDevice(hidCode: string) {
-  const idx = selectedDevices.value.indexOf(hidCode)
-  if (idx >= 0) selectedDevices.value.splice(idx, 1)
-  else selectedDevices.value.push(hidCode)
-  loadTransactions()
-  loadDailyRevenue()
-}
-
 function onFilterChange() {
   loadTransactions()
   loadDailyRevenue()
@@ -433,30 +426,21 @@ const csvHeaders = ['交易號', '設備ID', '商品', '金額', '付款方式',
     <div v-if="loading" class="placeholder">載入中…</div>
     <template v-else>
       <!-- 篩選區 -->
-      <div class="filter-section">
-        <!-- 日期範圍 -->
-        <div class="date-row">
-          <label class="date-field">
-            <span>起</span>
-            <input type="date" v-model="dateFrom" @change="onFilterChange" />
-          </label>
-          <span class="date-sep">～</span>
-          <label class="date-field">
-            <span>迄</span>
-            <input type="date" v-model="dateTo" @change="onFilterChange" />
-          </label>
-        </div>
-        <!-- 機台多選 -->
-        <div class="device-chips" v-if="vmList.length > 0">
-          <button
-            v-for="vm in vmList"
-            :key="vm.hidCode"
-            :class="['chip', { active: selectedDevices.includes(vm.hidCode) }]"
-            @click="toggleDevice(vm.hidCode)"
-          >{{ vm.vmid }}</button>
-          <span v-if="selectedDevices.length === 0" class="chip-hint">全部機台</span>
-        </div>
-      </div>
+      <FilterBar>
+        <FilterDateRange
+          :from="dateFrom"
+          :to="dateTo"
+          @update:from="dateFrom = $event; onFilterChange()"
+          @update:to="dateTo = $event; onFilterChange()"
+        />
+        <FilterChips
+          v-if="vmList.length > 0"
+          v-model="selectedDevices"
+          :options="vmList.map(vm => ({ value: vm.hidCode, label: vm.vmid }))"
+          empty-label="全部機台"
+          @update:model-value="onFilterChange()"
+        />
+      </FilterBar>
 
       <!-- 摘要 -->
       <div class="summary-bar">
@@ -511,63 +495,7 @@ const csvHeaders = ['交易號', '設備ID', '商品', '金額', '付款方式',
 </template>
 
 <style scoped>
-.filter-section {
-  padding: 10px 16px;
-  background: #f8f9fa;
-  border-bottom: 1px solid #eee;
-}
-.date-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.date-field {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex: 1;
-}
-.date-field span {
-  font-size: 13px;
-  color: #888;
-  white-space: nowrap;
-}
-.date-field input[type="date"] {
-  flex: 1;
-  padding: 6px 8px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  font-size: 14px;
-  background: #fff;
-}
-.date-sep {
-  color: #ccc;
-  font-size: 14px;
-}
-.device-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-  align-items: center;
-}
-.chip {
-  padding: 4px 12px;
-  border: 1px solid #ddd;
-  border-radius: 16px;
-  background: #fff;
-  font-size: 13px;
-  cursor: pointer;
-}
-.chip.active {
-  background: #4a90d9;
-  color: #fff;
-  border-color: #4a90d9;
-}
-.chip-hint {
-  font-size: 12px;
-  color: #aaa;
-}
+
 .summary-bar {
   display: flex;
   justify-content: space-around;

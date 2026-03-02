@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { gql } from '../../composables/useGraphQL'
 import PageHeader from '../../components/PageHeader.vue'
 import ExportButtons from '../../components/ExportButtons.vue'
+import { FilterBar, FilterButtonGroup } from '../../components/filters'
 
 const route = useRoute()
 const operatorId = route.params.operatorId as string
@@ -151,12 +152,17 @@ const csvHeaders = ['編號', '名稱', '售價', '條碼', '狀態', '備註']
     </PageHeader>
 
     <!-- 篩選 -->
-    <div class="filter-bar">
-      <button :class="['filter-btn', { active: filter === 'all' }]" @click="filter = 'all'; load()">全部</button>
-      <button :class="['filter-btn', { active: filter === 'active' }]" @click="filter = 'active'; load()">上架</button>
-      <button :class="['filter-btn', { active: filter === 'inactive' }]" @click="filter = 'inactive'; load()">下架</button>
-      <span class="filter-count">{{ items.length }} 筆</span>
-    </div>
+    <FilterBar :count="items.length">
+      <FilterButtonGroup
+        v-model="filter"
+        :options="[
+          { value: 'all', label: '全部' },
+          { value: 'active', label: '上架' },
+          { value: 'inactive', label: '下架' },
+        ]"
+        @update:model-value="load()"
+      />
+    </FilterBar>
 
     <div v-if="loading" class="placeholder">載入中…</div>
     <div v-else-if="items.length === 0" class="placeholder">尚無商品</div>
@@ -245,30 +251,6 @@ const csvHeaders = ['編號', '名稱', '售價', '條碼', '狀態', '備註']
 </template>
 
 <style scoped>
-.filter-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-}
-.filter-btn {
-  padding: 4px 12px;
-  border: 1px solid #ddd;
-  border-radius: 16px;
-  background: #fff;
-  font-size: 13px;
-  cursor: pointer;
-}
-.filter-btn.active {
-  background: #4a90d9;
-  color: #fff;
-  border-color: #4a90d9;
-}
-.filter-count {
-  margin-left: auto;
-  font-size: 13px;
-  color: #999;
-}
 .product-list {
   list-style: none;
   padding: 0;

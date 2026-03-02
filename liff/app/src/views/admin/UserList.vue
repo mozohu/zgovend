@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { gql } from '../../composables/useGraphQL'
 import PageHeader from '../../components/PageHeader.vue'
 import ExportButtons from '../../components/ExportButtons.vue'
+import { FilterBar, FilterChips, FilterSearch } from '../../components/filters'
 
 interface OperatorRole {
   operatorId: string
@@ -41,6 +42,58 @@ const OP_ROLE_OPTIONS = [
   { value: 'operator', label: '營運管理' },
   { value: 'replenisher', label: '巡補員' },
 ]
+
+// Filters
+const filterName = ref('')
+const filterOperators = ref<string[]>([])
+const filterRoles = ref<string[]>([])
+
+const ROLE_FILTER_OPTIONS = [
+  { value: 'admin', label: '系統管理' },
+  { value: 'operator', label: '營運管理' },
+  { value: 'replenisher', label: '巡補員' },
+  { value: 'consumer', label: '消費者' },
+]
+
+const operatorChipOptions = computed(() =>
+  operators.value.map(op => ({ value: op.code, label: op.name || op.code }))
+)
+
+const filteredUsers = computed(() => {
+  let list = users.value
+
+  // Name search
+  if (filterName.value.trim()) {
+    const q = filterName.value.trim().toLowerCase()
+    list = list.filter(u => u.displayName.toLowerCase().includes(q))
+  }
+
+  // Operator filter (multi-select: show users who belong to ANY selected operator)
+  if (filterOperators.value.length > 0) {
+    const sel = new Set(filterOperators.value)
+    list = list.filter(u => u.operatorRoles.some(or => sel.has(or.operatorId)))
+  }
+
+  // Role filter (multi-select: show users who have ANY selected role)
+  if (filterRoles.value.length > 0) {
+    const sel = new Set(filterRoles.value)
+    list = list.filter(u => {
+      if (sel.has('admin') && u.isAdmin) return true
+      if (sel.has('consumer') && !u.isAdmin && u.operatorRoles.length === 0) return true
+      return u.operatorRoles.some(or => or.roles.some(r => sel.has(r)))
+    })
+  }
+
+  return list
+})
+
+const hasFilters = computed(() => !!(filterName.value || filterOperators.value.length || filterRoles.value.length))
+
+function clearFilters() {
+  filterName.value = ''
+  filterOperators.value = []
+  filterRoles.value = []
+}
 
 async function loadUsers() {
   loading.value = true
@@ -163,15 +216,36 @@ const csvHeaders = ['LINE ID', '名稱', '管理員', '角色', '最後登入']
       { label: '系統管理', to: '/admin' },
       { label: '使用者管理' },
     ]" :onRefresh="loadUsers">
-      <span class="header-badge">{{ users.length }}</span>
+      <span class="header-badge">{{ filteredUsers.length }}</span>
       <ExportButtons filename="users" :headers="csvHeaders" :rows="csvRows" />
     </PageHeader>
 
     <div v-if="loading" class="placeholder">載入中…</div>
-    <div v-else-if="users.length === 0" class="placeholder">尚無使用者</div>
+    <template v-else-if="users.length > 0">
+      <FilterBar
+        :count="filteredUsers.length"
+        :total="users.length"
+        :has-filters="hasFilters"
+        @clear="clearFilters"
+      >
+        <FilterSearch v-model="filterName" placeholder="搜尋名稱…" />
+        <FilterChips
+          v-if="operators.length > 0"
+          v-model="filterOperators"
+          :options="operatorChipOptions"
+          empty-label="全部營運商"
+        />
+        <FilterChips
+          v-model="filterRoles"
+          :options="ROLE_FILTER_OPTIONS"
+          empty-label="全部角色"
+        />
+      </FilterBar>
+    </template>
+    <div v-else class="placeholder">尚無使用者</div>
 
-    <ul v-else class="user-list">
-      <li v-for="user in users" :key="user.lineUserId" class="user-item" @click="startEdit(user)">
+    <ul v-if="!loading && filteredUsers.length > 0" class="user-list">
+      <li v-for="user in filteredUsers" :key="user.lineUserId" class="user-item" @click="startEdit(user)">
         <img v-if="user.pictureUrl && !brokenAvatars.has(user.lineUserId)" :src="user.pictureUrl" class="avatar" @error="onAvatarError(user.lineUserId)" />
         <div v-else class="avatar avatar-placeholder">👤</div>
         <div class="user-info-col">

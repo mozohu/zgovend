@@ -4,6 +4,7 @@ import { gql } from '../../composables/useGraphQL'
 import { useLiff } from '../../composables/useLiff'
 import PageHeader from '../../components/PageHeader.vue'
 import ExportButtons from '../../components/ExportButtons.vue'
+import { FilterBar, FilterChips, FilterSearch } from '../../components/filters'
 import { useSpeech } from '../../composables/useSpeech'
 
 const { speaking, loading: speechLoading, speakLines, stop: stopSpeech } = useSpeech()
@@ -77,15 +78,6 @@ const grandTotal = computed(() => {
   return { current, max, needed }
 })
 
-function toggleVmFilter(vmid: string) {
-  const idx = filterVmids.value.indexOf(vmid)
-  if (idx >= 0) {
-    filterVmids.value = filterVmids.value.filter(v => v !== vmid)
-  } else {
-    filterVmids.value = [...filterVmids.value, vmid]
-  }
-}
-
 function getVmData(row: SummaryRow, vmid: string): SummaryVm {
   return row.vms.find(v => v.vmid === vmid) || { vmid, currentQty: 0, maxQty: 0, needed: 0 }
 }
@@ -151,24 +143,17 @@ const csvHeaders = ['營運商', '商品編號', '商品名稱', '售價', '目�
 
       <template v-else>
         <!-- Filters -->
-        <div class="filters">
-          <div class="filter-section">
-            <label>機台</label>
-            <div class="chip-row">
-              <button v-for="vm in allVmids" :key="vm"
-                :class="['chip', { active: filterVmids.length === 0 || filterVmids.includes(vm) }]"
-                @click="toggleVmFilter(vm)">{{ vm }}</button>
-            </div>
-          </div>
-          <div class="filter-section">
-            <label>商品搜尋</label>
-            <input v-model="filterProduct" placeholder="名稱或編號…" class="search-input" />
-          </div>
-        </div>
+        <FilterBar :count="filteredRows.length" count-label="種商品">
+          <FilterChips
+            v-model="filterVmids"
+            :options="allVmids.map(vm => ({ value: vm, label: vm }))"
+            empty-label="全部機台"
+          />
+          <FilterSearch v-model="filterProduct" placeholder="名稱或編號…" />
+        </FilterBar>
 
         <!-- Summary -->
         <div class="summary-bar">
-          <span><b>{{ filteredRows.length }}</b> 種商品</span>
           <span>缺補 <b class="red">{{ grandTotal.needed }}</b> 件</span>
         </div>
 
@@ -249,25 +234,7 @@ const csvHeaders = ['營運商', '商品編號', '商品名稱', '售價', '目�
 .error-box p { color: #c33; margin: 0 0 12px; }
 .btn { background: #667eea; color: #fff; border: none; border-radius: 8px; padding: 8px 20px; font-size: 14px; }
 
-/* Filters */
-.filters {
-  background: #fff; border-radius: 12px; padding: 12px; margin-bottom: 12px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-}
-.filter-section { margin-bottom: 10px; }
-.filter-section:last-child { margin-bottom: 0; }
-.filter-section label { font-size: 12px; color: #888; font-weight: 600; margin-bottom: 6px; display: block; }
-.chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip {
-  padding: 5px 10px; border-radius: 16px; font-size: 12px; border: 1px solid #ddd;
-  background: #f5f5f5; color: #999; cursor: pointer; transition: all .15s;
-}
-.chip.active { background: #667eea; color: #fff; border-color: #667eea; }
-.search-input {
-  width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px;
-  font-size: 14px; outline: none; box-sizing: border-box;
-}
-.search-input:focus { border-color: #667eea; }
+
 
 /* Summary bar */
 .summary-bar {

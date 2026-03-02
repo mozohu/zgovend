@@ -5,6 +5,7 @@ import { gql } from '../../composables/useGraphQL'
 import { useLiff } from '../../composables/useLiff'
 import PageHeader from '../../components/PageHeader.vue'
 import ExportButtons from '../../components/ExportButtons.vue'
+import { FilterBar, FilterButtonGroup } from '../../components/filters'
 
 const route = useRoute()
 const operatorId = route.params.operatorId as string
@@ -109,11 +110,13 @@ const csvHeaders = ['問題單號', '主旨', '回報者', '類別', '狀態', '
       <ExportButtons filename="tickets" :headers="csvHeaders" :rows="csvRows" />
     </PageHeader>
 
-    <div class="filters">
-      <button v-for="f in statusFilters" :key="f.value"
-        :class="['chip', { active: filterStatus === f.value }]"
-        @click="onFilterChange(f.value)">{{ f.label }}</button>
-    </div>
+    <FilterBar>
+      <FilterButtonGroup
+        v-model="filterStatus"
+        :options="statusFilters"
+        @update:model-value="onFilterChange($event)"
+      />
+    </FilterBar>
 
     <div v-if="loading" class="loading">載入中...</div>
     <div v-else-if="!tickets.length" class="empty">無問題單</div>
@@ -160,9 +163,7 @@ const csvHeaders = ['問題單號', '主旨', '回報者', '類別', '狀態', '
 </template>
 
 <style scoped>
-.filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; padding: 0 16px; }
-.chip { padding: 6px 14px; border-radius: 16px; border: 1px solid #ddd; background: #fff; font-size: 13px; cursor: pointer; }
-.chip.active { background: #667eea; color: #fff; border-color: #667eea; }
+
 .loading, .empty { text-align: center; color: #888; padding: 40px 0; }
 .card { background: #fff; border-radius: 10px; padding: 14px; margin: 0 16px 10px; box-shadow: 0 1px 4px rgba(0,0,0,.08); cursor: pointer; }
 .card-header { display: flex; justify-content: space-between; align-items: flex-start; }

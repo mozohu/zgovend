@@ -1,0 +1,16 @@
+/* FilterKit Design Tokens */
+:root {
+  --fk-bg: #f8f9fa;
+  --fk-border: #eee;
+  --fk-active: #667eea;
+  --fk-active-text: #fff;
+  --fk-text: #666;
+  --fk-text-muted: #999;
+  --fk-input-border: #ddd;
+  --fk-input-bg: #fff;
+  --fk-radius-pill: 16px;
+  --fk-radius-box: 8px;
+  --fk-height: 36px;
+  --fk-gap: 8px;
+  --fk-font: 13px;
+}

@@ -4,6 +4,7 @@ import QRCode from 'qrcode'
 import { gql } from '../../composables/useGraphQL'
 import PageHeader from '../../components/PageHeader.vue'
 import ExportButtons from '../../components/ExportButtons.vue'
+import { FilterBar, FilterButtonGroup } from '../../components/filters'
 
 const orders = ref<any[]>([])
 const loading = ref(true)
@@ -79,12 +80,13 @@ const csvHeaders = ['訂單號', '訂購人', '機台', '狀態', '建立時間'
     </PageHeader>
     <div class="content">
       <!-- Filter -->
-      <div class="filter-row">
-        <button v-for="s in statuses" :key="s" :class="['filter-btn', { active: filterStatus === s }]"
-          @click="filterStatus = s; loadOrders()">
-          {{ s ? statusLabel[s] : '全部' }}
-        </button>
-      </div>
+      <FilterBar>
+        <FilterButtonGroup
+          v-model="filterStatus"
+          :options="statuses.map(s => ({ value: s, label: s ? statusLabel[s] : '全部' }))"
+          @update:model-value="loadOrders()"
+        />
+      </FilterBar>
 
       <div v-if="loading" class="loading">載入中…</div>
       <div v-else-if="!orders.length" class="empty">沒有訂單</div>
@@ -150,12 +152,7 @@ const csvHeaders = ['訂單號', '訂購人', '機台', '狀態', '建立時間'
 .page { min-height: 100vh; background: #f5f5f5; }
 .content { padding: 16px; max-width: 480px; margin: 0 auto; }
 .loading, .empty { text-align: center; padding: 40px 0; color: #888; }
-.filter-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
-.filter-btn {
-  padding: 6px 12px; border: 1px solid #ddd; border-radius: 20px; background: #fff;
-  font-size: 13px; cursor: pointer; color: #666;
-}
-.filter-btn.active { background: #667eea; color: #fff; border-color: #667eea; }
+
 .order-list { display: flex; flex-direction: column; gap: 10px; }
 .order-card {
   background: #fff; border-radius: 14px; padding: 14px;

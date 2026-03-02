@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { gql } from '../../composables/useGraphQL'
 import PageHeader from '../../components/PageHeader.vue'
 import ExportButtons from '../../components/ExportButtons.vue'
+import { FilterBar, FilterButtonGroup } from '../../components/filters'
 
 const route = useRoute()
 const operatorId = route.params.operatorId as string
@@ -62,12 +63,13 @@ const csvHeaders = ['訂單號', '訂購人', '機台', '狀態', '建立時間'
       <ExportButtons filename="online-orders" :headers="csvHeaders" :rows="csvRows" />
     </PageHeader>
     <div class="content">
-      <div class="filter-row">
-        <button v-for="s in statuses" :key="s" :class="['chip', { active: filterStatus === s }]"
-          @click="filterStatus = s; load()">
-          {{ s ? statusLabel[s] : '全部' }}
-        </button>
-      </div>
+      <FilterBar>
+        <FilterButtonGroup
+          v-model="filterStatus"
+          :options="statuses.map(s => ({ value: s, label: s ? statusLabel[s] : '全部' }))"
+          @update:model-value="load()"
+        />
+      </FilterBar>
 
       <div v-if="loading" class="center-msg"><p>載入中…</p></div>
       <div v-else-if="!orders.length" class="center-msg"><p>沒有訂單</p></div>
@@ -111,12 +113,7 @@ const csvHeaders = ['訂單號', '訂購人', '機台', '狀態', '建立時間'
 .page { min-height: 100vh; background: #f5f5f5; }
 .content { padding: 12px; max-width: 480px; margin: 0 auto; }
 .center-msg { text-align: center; padding: 40px 0; color: #888; }
-.filter-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
-.chip {
-  padding: 5px 12px; border-radius: 16px; font-size: 13px; border: 1px solid #ddd;
-  background: #fff; color: #666; cursor: pointer;
-}
-.chip.active { background: #667eea; color: #fff; border-color: #667eea; }
+
 .order-list { display: flex; flex-direction: column; gap: 10px; }
 .order-card {
   background: #fff; border-radius: 14px; padding: 14px;
