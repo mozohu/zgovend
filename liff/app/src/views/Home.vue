@@ -224,16 +224,18 @@ onMounted(async () => { await Promise.all([refreshRoles(), loadData()]) })
     <nav class="role-nav">
       <!-- 消費者 -->
       <div class="section-header">🛒 消費者</div>
-      <router-link to="/consumer/shop" class="role-card role-card-sub">
-        <span class="role-icon">🛒</span>
-        <span class="role-label">線上訂購</span>
-        <span class="role-desc">瀏覽商品、加入購物車</span>
-      </router-link>
-      <router-link to="/consumer/orders" class="role-card role-card-sub">
-        <span class="role-icon">📦</span>
-        <span class="role-label">我的訂單</span>
-        <span class="role-desc">查看訂單與取貨碼</span>
-      </router-link>
+      <template v-if="isAdmin">
+        <router-link to="/consumer/shop" class="role-card role-card-sub">
+          <span class="role-icon">🛒</span>
+          <span class="role-label">線上訂購</span>
+          <span class="role-desc">瀏覽商品、加入購物車</span>
+        </router-link>
+        <router-link to="/consumer/orders" class="role-card role-card-sub">
+          <span class="role-icon">📦</span>
+          <span class="role-label">我的訂單</span>
+          <span class="role-desc">查看訂單與取貨碼</span>
+        </router-link>
+      </template>
       <router-link to="/consumer/tickets/new" class="role-card role-card-sub">
         <span class="role-icon">📝</span>
         <span class="role-label">問題回報</span>
@@ -391,4 +393,5 @@ onMounted(async () => { await Promise.all([refreshRoles(), loadData()]) })
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+
 </style>
