@@ -79,6 +79,7 @@ async function loadStatus() {
     const data = await gql(`query($opId: String!) {
       vms(operatorId: $opId, status: "active") { vmid hidCode locationName }
       heartbeats { deviceId stat content receivedAt }
+      latestTemps { deviceId temperature }
       stocks { deviceId channels { chid quantity max } }
     }`, { opId: operatorId })
 
@@ -90,6 +91,11 @@ async function loadStatus() {
     const stockMap = new Map<string, any>()
     for (const s of data.stocks || []) {
       stockMap.set(s.deviceId, s)
+    }
+
+    const tempMap = new Map<string, number>()
+    for (const t of data.latestTemps || []) {
+      if (t.temperature != null) tempMap.set(t.deviceId, t.temperature)
     }
 
     machines.value = (data.vms || []).map((vm: any) => {
@@ -118,6 +124,7 @@ async function loadStatus() {
         lastHeartbeat,
         online,
         stockPct,
+        temperature: vm.hidCode ? (tempMap.get(vm.hidCode) ?? null) : null,
       }
     })
   } catch (e: any) {
@@ -200,6 +207,9 @@ const csvHeaders = ['機台ID', 'HID', '位置', '狀態', '庫存']
             <span v-if="m.stockPct !== null" class="mc-stock" :class="{ 'stock-low': m.stockPct <= 20, 'stock-mid': m.stockPct > 20 && m.stockPct <= 50 }">
               📦 {{ m.stockPct }}%
             </span>
+            <span v-if="m.temperature !== null" class="mc-temp" :class="{ 'temp-warn': m.temperature > 10 }">
+              🌡️ {{ m.temperature }}°C
+            </span>
           </div>
         </li>
       </ul>
@@ -259,6 +269,8 @@ const csvHeaders = ['機台ID', 'HID', '位置', '狀態', '庫存']
 .mc-stock { font-weight: 600; color: #2e7d32; }
 .mc-stock.stock-low { color: #c62828; }
 .mc-stock.stock-mid { color: #e65100; }
+.mc-temp { color: #1565c0; }
+.mc-temp.temp-warn { color: #c62828; }
 .mc-screenshot-row { margin-top: 8px; }
 .btn-screenshot {
   padding: 4px 10px;

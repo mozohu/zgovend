@@ -37,6 +37,7 @@ const router = createRouter({
         { path: 'transaction/:txno', name: 'TransactionDetail', component: () => import('../views/operator/TransactionDetail.vue') },
         { path: 'tickets', name: 'operator-tickets', component: () => import('../views/operator/Tickets.vue') },
         { path: 'online-orders', name: 'operator-online-orders', component: () => import('../views/operator/OnlineOrders.vue') },
+        { path: 'events', name: 'operator-events', component: () => import('../views/operator/OperationalEvents.vue') },
         { path: 'preset-stock', name: 'operator-preset-stock', component: () => import('../views/operator/PresetStockList.vue') },
         { path: 'preset-stock/:id', name: 'operator-preset-stock-edit', component: () => import('../views/operator/PresetStockEdit.vue') },
       ],
